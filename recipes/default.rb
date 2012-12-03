@@ -130,6 +130,9 @@ service "jenkins" do
   supports [ :stop, :start, :restart, :status ]
   status_command "test -f #{node['jenkins']['pid_file']} && kill -0 `cat #{node['jenkins']['pid_file']}`"
   action :nothing
+  # if node['platform'] == "mac_os_x"
+  #   provider Chef::Provider::Service::Macosx
+  # end
 end
 
 ruby_block "block_until_operational" do
@@ -152,6 +155,18 @@ ruby_block "block_until_operational" do
   action :nothing
 end
 
+if node['platform'] == "mac_os_x"
+  dmg_package "Jenkins" do
+    source "http://mirrors.jenkins-ci.org/war/latest/jenkins.war"
+    checksum "  http://mirrors.jenkins-ci.org/war/latest/jenkins.war"
+    action :install
+    type "pkg"
+    package_id "org.jenkins-ci.jenkins.osx.pkg"
+  end
+else
+  package "jenkins"
+end
+
 log "jenkins: install and start" do
   notifies :install, "package[jenkins]", :immediately
   notifies :start, "service[jenkins]", :immediately unless node['jenkins']['install_starts_service']
@@ -161,14 +176,11 @@ log "jenkins: install and start" do
   end
 end
 
-unless node['jenkins']['sysconf_template'].nil?
+unless node['jenkins']['sysconf_template'].nil? || node['jenkins']['sysconf_template'].empty?
   template node['jenkins']['sysconf_template'] do
-    notifies :restart, "service[jenkins]", :immediately 
+    notifies :restart, "service[jenkins]", :immediately
   end
 end
-
-
-package "jenkins"
 
 # restart if this run only added new plugins
 log "plugins updated, restarting jenkins" do
